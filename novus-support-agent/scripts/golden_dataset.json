@@ -1,0 +1,322 @@
+[
+  {
+    "id": "RET-001",
+    "query": "How can I prepay my personal loan?",
+    "expected_intent": "return_or_refund",
+    "expected_answer": "You can prepay your personal loan after 6 EMIs have been paid. A prepayment penalty of 2% applies on the outstanding loan amount at the time of prepayment.",
+    "expected_source": "personal_loan",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "return_or_refund"
+  },
+  {
+    "id": "RET-002",
+    "query": "What is the foreclosure charge for Elite customers?",
+    "expected_intent": "return_or_refund",
+    "expected_answer": "Elite customers can foreclose their personal loan after 18 EMIs with zero foreclosure charge. Standard foreclosure (after 12 EMIs) carries a 1% charge on the outstanding amount.",
+    "expected_source": "personal_loan",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "return_or_refund"
+  },
+  {
+    "id": "RET-003",
+    "query": "Can I close my personal loan after paying 10 months of EMIs?",
+    "expected_intent": "return_or_refund",
+    "expected_answer": "Foreclosure is allowed after 12 EMIs with a 1% charge. With only 10 EMIs paid, you cannot foreclose yet. However, prepayment is allowed after 6 EMIs with a 2% penalty on the outstanding amount.",
+    "expected_source": "personal_loan",
+    "expected_escalation": false,
+    "difficulty": "medium",
+    "category": "return_or_refund"
+  },
+  {
+    "id": "RET-004",
+    "query": "I am an Elite customer and have paid 20 EMIs but was still charged a prepayment penalty. I want this charge reversed immediately.",
+    "expected_intent": "return_or_refund",
+    "expected_answer": "Elite customers are entitled to zero foreclosure charge after 18 EMIs. A prepayment penalty charged after 20 EMIs on an Elite account appears to be an error. This billing dispute requires escalation to a human agent for review and reversal.",
+    "expected_source": "personal_loan",
+    "expected_escalation": true,
+    "difficulty": "hard",
+    "category": "return_or_refund"
+  },
+  {
+    "id": "RET-005",
+    "query": "Novus Bank deducted an extra Rs 5000 as a loan fee that I never authorised. I want this investigated and refunded.",
+    "expected_intent": "return_or_refund",
+    "expected_answer": "An unauthorised deduction from your account is a serious matter. This case needs to be escalated to a human agent for investigation and potential refund.",
+    "expected_source": "personal_loan",
+    "expected_escalation": true,
+    "difficulty": "hard",
+    "category": "return_or_refund"
+  },
+  {
+    "id": "ORD-001",
+    "query": "How long does it take to activate a new savings account?",
+    "expected_intent": "order_status",
+    "expected_answer": "A new Novus Bank savings account is activated within 2 hours of completing Video KYC or branch verification.",
+    "expected_source": "savings_account",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "order_status"
+  },
+  {
+    "id": "ORD-002",
+    "query": "How long does disbursement take for a pre-approved personal loan?",
+    "expected_intent": "order_status",
+    "expected_answer": "For pre-approved customers, personal loan disbursement is completed within 24 hours.",
+    "expected_source": "personal_loan",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "order_status"
+  },
+  {
+    "id": "ORD-003",
+    "query": "I am not a pre-approved customer. How long will my personal loan take to be disbursed?",
+    "expected_intent": "order_status",
+    "expected_answer": "For non-pre-approved customers, personal loan disbursement takes 3 to 5 working days after approval.",
+    "expected_source": "personal_loan",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "order_status"
+  },
+  {
+    "id": "ORD-004",
+    "query": "I applied for a personal loan 6 days ago and still have not received an approval decision. What is going on?",
+    "expected_intent": "order_status",
+    "expected_answer": "The standard processing time for non-pre-approved personal loans is 3 to 5 working days after application. Six days with no decision may indicate a delay. Please contact our support team for a status update.",
+    "expected_source": "personal_loan",
+    "expected_escalation": false,
+    "difficulty": "medium",
+    "category": "order_status"
+  },
+  {
+    "id": "ORD-005",
+    "query": "My savings account activation has been pending for 3 days. You promised 2 hours. I am locked out and need to make an urgent salary payment today.",
+    "expected_intent": "order_status",
+    "expected_answer": "Savings account activation is promised within 2 hours. A 3-day delay with an urgent payment blocked is a critical service failure that requires immediate escalation to a human agent.",
+    "expected_source": "savings_account",
+    "expected_escalation": true,
+    "difficulty": "hard",
+    "category": "order_status"
+  },
+  {
+    "id": "BILL-001",
+    "query": "What is the EMI bounce fee for a personal loan?",
+    "expected_intent": "billing_or_payment",
+    "expected_answer": "The EMI bounce fee for a personal loan at Novus Bank is Rs 500 per instance.",
+    "expected_source": "personal_loan",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "billing_or_payment"
+  },
+  {
+    "id": "BILL-002",
+    "query": "What late interest is charged on an overdue personal loan amount?",
+    "expected_intent": "billing_or_payment",
+    "expected_answer": "Late interest on overdue personal loan amounts is 2% per month on the overdue amount.",
+    "expected_source": "personal_loan",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "billing_or_payment"
+  },
+  {
+    "id": "BILL-003",
+    "query": "What processing fee will I be charged for a personal loan of Rs 5 lakh?",
+    "expected_intent": "billing_or_payment",
+    "expected_answer": "The processing fee is 1% of the loan amount with a minimum of Rs 999. For a Rs 5,00,000 loan, the processing fee would be Rs 5,000.",
+    "expected_source": "personal_loan",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "billing_or_payment"
+  },
+  {
+    "id": "BILL-004",
+    "query": "How many free ATM withdrawals do I get per month as a Plus member?",
+    "expected_intent": "billing_or_payment",
+    "expected_answer": "Plus members get 5 free ATM withdrawals per month at other bank ATMs.",
+    "expected_source": "savings_account",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "billing_or_payment"
+  },
+  {
+    "id": "BILL-005",
+    "query": "I was charged an EMI bounce fee of Rs 500 this month but I had enough balance in my account on the due date. I want this reversed.",
+    "expected_intent": "billing_or_payment",
+    "expected_answer": "An EMI bounce fee charged despite sufficient account balance is a disputed charge. This requires investigation by our team and needs to be escalated to a human agent for review and potential reversal.",
+    "expected_source": "personal_loan",
+    "expected_escalation": true,
+    "difficulty": "hard",
+    "category": "billing_or_payment"
+  },
+  {
+    "id": "BILL-006",
+    "query": "I see an unauthorised debit of Rs 12000 from my savings account yesterday. I did not make this transaction.",
+    "expected_intent": "billing_or_payment",
+    "expected_answer": "An unauthorised debit is a potential fraud case that requires immediate escalation to our security team. Please contact us to block your card and initiate a formal dispute.",
+    "expected_source": "savings_account",
+    "expected_escalation": true,
+    "difficulty": "hard",
+    "category": "billing_or_payment"
+  },
+  {
+    "id": "PROD-001",
+    "query": "What interest rate does an Elite savings account earn?",
+    "expected_intent": "product_info",
+    "expected_answer": "Elite savings account holders earn an interest rate of 4.0% per annum, credited quarterly.",
+    "expected_source": "savings_account",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "product_info"
+  },
+  {
+    "id": "PROD-002",
+    "query": "What CIBIL score do I need to qualify for a personal loan?",
+    "expected_intent": "product_info",
+    "expected_answer": "You need a CIBIL score of 750 or above to be eligible for a Novus Bank personal loan.",
+    "expected_source": "personal_loan",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "product_info"
+  },
+  {
+    "id": "PROD-003",
+    "query": "What is the maximum loan amount I can borrow with a Novus Bank personal loan?",
+    "expected_intent": "product_info",
+    "expected_answer": "The maximum personal loan amount at Novus Bank is Rs 25,00,000 (25 lakhs).",
+    "expected_source": "personal_loan",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "product_info"
+  },
+  {
+    "id": "PROD-004",
+    "query": "Can a self-employed person apply for a personal loan at Novus Bank?",
+    "expected_intent": "product_info",
+    "expected_answer": "Yes, both salaried and self-employed individuals are eligible for a Novus Bank personal loan, provided they have a CIBIL score of 750 or above.",
+    "expected_source": "personal_loan",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "product_info"
+  },
+  {
+    "id": "PROD-005",
+    "query": "What is the contactless payment limit on the Novus Bank debit card?",
+    "expected_intent": "product_info",
+    "expected_answer": "The Novus Bank debit card supports contactless payments up to Rs 5,000 without requiring a PIN.",
+    "expected_source": "savings_account",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "product_info"
+  },
+  {
+    "id": "PROD-006",
+    "query": "I need a personal loan of Rs 30 lakhs for a life-threatening medical emergency. Your website says the maximum is Rs 25 lakhs. Can you make an exception?",
+    "expected_intent": "product_info",
+    "expected_answer": "The maximum personal loan amount is Rs 25,00,000. Requests above this limit, particularly for emergency situations, require escalation to a senior relationship manager who has the authority to review exceptional cases.",
+    "expected_source": "personal_loan",
+    "expected_escalation": true,
+    "difficulty": "hard",
+    "category": "product_info"
+  },
+  {
+    "id": "MEM-001",
+    "query": "What is the minimum balance requirement for a Standard savings account?",
+    "expected_intent": "membership",
+    "expected_answer": "The minimum balance for a Standard savings account is Rs 1,000. This requirement is waived for Plus and Elite members.",
+    "expected_source": "savings_account",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "membership"
+  },
+  {
+    "id": "MEM-002",
+    "query": "What is the interest rate difference between Standard and Elite savings accounts?",
+    "expected_intent": "membership",
+    "expected_answer": "Standard savings accounts earn 3.5% per annum while Elite accounts earn 4.0% per annum, both credited quarterly. Elite members earn 0.5 percentage points more.",
+    "expected_source": "savings_account",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "membership"
+  },
+  {
+    "id": "MEM-003",
+    "query": "How many free ATM withdrawals does an Elite savings account member get per month?",
+    "expected_intent": "membership",
+    "expected_answer": "Elite members get unlimited free ATM withdrawals at other bank ATMs per month.",
+    "expected_source": "savings_account",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "membership"
+  },
+  {
+    "id": "MEM-004",
+    "query": "What are the key benefits of upgrading from a Standard to an Elite savings account?",
+    "expected_intent": "membership",
+    "expected_answer": "Upgrading from Standard to Elite gives you: waived minimum balance (vs Rs 1,000), higher interest rate of 4.0% p.a. (vs 3.5%), unlimited free ATM withdrawals at other banks (vs 3 per month), and zero personal loan foreclosure charge after 18 EMIs.",
+    "expected_source": "savings_account",
+    "expected_escalation": false,
+    "difficulty": "medium",
+    "category": "membership"
+  },
+  {
+    "id": "MEM-005",
+    "query": "A Novus Bank branch manager promised me Elite membership benefits two months ago but my account still shows Standard tier. Nobody has resolved this despite multiple calls.",
+    "expected_intent": "membership",
+    "expected_answer": "A committed membership upgrade that has not been applied after two months is a service delivery failure. This complaint needs to be escalated to a senior customer relations manager for immediate resolution.",
+    "expected_source": "savings_account",
+    "expected_escalation": true,
+    "difficulty": "hard",
+    "category": "membership"
+  },
+  {
+    "id": "GEN-001",
+    "query": "After how many months of inactivity does a savings account become dormant?",
+    "expected_intent": "general",
+    "expected_answer": "A Novus Bank savings account becomes dormant after 24 months (2 years) of inactivity.",
+    "expected_source": "savings_account",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "general"
+  },
+  {
+    "id": "GEN-002",
+    "query": "Does Novus Bank offer mobile app and net banking access?",
+    "expected_intent": "general",
+    "expected_answer": "Yes, all Novus Bank savings account holders get full access to both the mobile app and net banking.",
+    "expected_source": "savings_account",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "general"
+  },
+  {
+    "id": "GEN-003",
+    "query": "What personal loan interest rate will I get as a Plus member?",
+    "expected_intent": "general",
+    "expected_answer": "Plus members receive a personal loan interest rate of 13% per annum.",
+    "expected_source": "personal_loan",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "general"
+  },
+  {
+    "id": "GEN-004",
+    "query": "How do I open a savings account with Novus Bank?",
+    "expected_intent": "general",
+    "expected_answer": "You can open a Novus Bank savings account through Video KYC online or by visiting a branch. Account activation is completed within 2 hours.",
+    "expected_source": "savings_account",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "general"
+  },
+  {
+    "id": "GEN-005",
+    "query": "I have been a Novus Bank customer for 5 years. I was misled about my personal loan terms at the time of signing and want to formally escalate this complaint to senior management.",
+    "expected_intent": "general",
+    "expected_answer": "A formal complaint about being misled on loan terms is a serious matter requiring escalation to our customer grievance team and senior management for review.",
+    "expected_source": "personal_loan",
+    "expected_escalation": true,
+    "difficulty": "medium",
+    "category": "general"
+  }
+]

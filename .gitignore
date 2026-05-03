@@ -1,0 +1,20 @@
+﻿# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# Environment
+.env
+*.env
+
+# Eval outputs
+novus-support-agent/scripts/eval_results.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude internals
+.claude/hooks/__pycache__/
+.claude/skills/

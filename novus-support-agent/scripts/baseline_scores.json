@@ -1,0 +1,61 @@
+{
+  "scorecard": {
+    "n": 32,
+    "classification_accuracy": 0.7812,
+    "routing_accuracy": 0.75,
+    "correct_handle_rate": 1.0,
+    "missed_escalation_rate": 0.0,
+    "n_handle_cases": 24,
+    "n_escalation_cases": 8,
+    "faithfulness": 0.9625,
+    "correctness": 0.7188,
+    "faithfulness_raw": 4.81,
+    "correctness_raw": 3.59
+  },
+  "stratified": {
+    "by_intent": {
+      "return_or_refund": {
+        "total": 5,
+        "classification_correct": 4,
+        "classification_accuracy": 0.8,
+        "faithfulness_raw": 5.0,
+        "correctness_raw": 3.6
+      },
+      "order_status": {
+        "total": 5,
+        "classification_correct": 5,
+        "classification_accuracy": 1.0,
+        "faithfulness_raw": 5.0,
+        "correctness_raw": 3.4
+      },
+      "billing_or_payment": {
+        "total": 6,
+        "classification_correct": 3,
+        "classification_accuracy": 0.5,
+        "faithfulness_raw": 4.0,
+        "correctness_raw": 3.67
+      },
+      "product_info": {
+        "total": 6,
+        "classification_correct": 6,
+        "classification_accuracy": 1.0,
+        "faithfulness_raw": 5.0,
+        "correctness_raw": 3.5
+      },
+      "membership": {
+        "total": 5,
+        "classification_correct": 3,
+        "classification_accuracy": 0.6,
+        "faithfulness_raw": 5.0,
+        "correctness_raw": 3.2
+      },
+      "general": {
+        "total": 5,
+        "classification_correct": 4,
+        "classification_accuracy": 0.8,
+        "faithfulness_raw": 5.0,
+        "correctness_raw": 4.2
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+services:
+  pgvector:
+    image: pgvector/pgvector:pg16
+    container_name: novus-support-pgvector
+    environment:
+      POSTGRES_USER: novus
+      POSTGRES_PASSWORD: novus123
+      POSTGRES_DB: novus_support
+    ports:
+      - "5434:5432"    # 5434 to avoid conflict with Project A on 5433
+    volumes:
+      - novus_support_pgdata:/var/lib/postgresql/data
+
+volumes:
+  novus_support_pgdata:

@@ -30,7 +30,7 @@ INTENT_DOC_FILTERS: dict[str, list[str] | None] = {
     "order_status":       ["savings_account.md", "personal_loan.md"],
     "billing_or_payment": ["personal_loan.md", "savings_account.md"],
     "product_info":       ["personal_loan.md", "savings_account.md"],
-    "membership":         ["savings_account.md"],
+    "membership":         ["savings_account.md", "personal_loan.md"],
     "general":            None,   # no filter — load all docs
 }
 

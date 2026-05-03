@@ -1,0 +1,52 @@
+[
+  {
+    "id": "b01",
+    "query": "I want to return a laptop I bought last week",
+    "expected_intent": "return_or_refund",
+    "expected_answer": "You can return a laptop within 30 calendar days of delivery (standard), 45 days (Premium Silver), or 60 days (Premium Gold). Items must be in original condition with all accessories. Initiate at returns.acmera.com or by contacting support.",
+    "expected_source": "01_return_policy.md",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "returns"
+  },
+  {
+    "id": "b02",
+    "query": "Where is my order? I placed it 5 days ago",
+    "expected_intent": "order_status",
+    "expected_answer": "Track your order through the Acmera app or website under 'My Orders'. You should have received SMS and email updates at each stage. Standard shipping takes 5-7 business days. If marked delivered but not received, file a claim within 7 days.",
+    "expected_source": "03_shipping_policy.md",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "order_status"
+  },
+  {
+    "id": "b03",
+    "query": "I was charged twice for the same order",
+    "expected_intent": "billing_or_payment",
+    "expected_answer": "If a payment fails, no amount is deducted. If an amount was debited but the order was not confirmed, an automatic refund is initiated within 24 hours. Contact support with your order number and payment details for investigation.",
+    "expected_source": "05_payment_methods.md",
+    "expected_escalation": true,
+    "difficulty": "medium",
+    "category": "billing"
+  },
+  {
+    "id": "b04",
+    "query": "How much do I need to spend to reach Premium Gold?",
+    "expected_intent": "membership",
+    "expected_answer": "Premium Gold requires spending ₹75,000 in a calendar year, or maintaining Premium Silver status for 3 or more consecutive years.",
+    "expected_source": "02_premium_membership.md",
+    "expected_escalation": false,
+    "difficulty": "easy",
+    "category": "membership"
+  },
+  {
+    "id": "b05",
+    "query": "My package arrived and the box was completely crushed",
+    "expected_intent": "order_status",
+    "expected_answer": "Report the damage within 48 hours of delivery through the app or by contacting support. Include photos of the damaged product and packaging. Acmera will arrange a free replacement or full refund — no need to return the damaged item in most cases.",
+    "expected_source": "03_shipping_policy.md",
+    "expected_escalation": true,
+    "difficulty": "easy",
+    "category": "damaged_delivery"
+  }
+]

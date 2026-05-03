@@ -1,0 +1,107 @@
+# ============================================================================
+# Project B — Eval Regression Check
+#
+# Runs on every pull request to main.
+# Evaluates all 4 dimensions: classification, retrieval, faithfulness, routing.
+# Fails and blocks the PR if any generation metric regresses beyond threshold.
+#
+# Note on routing accuracy: the naive pipeline (Week 1-2) always scores 0%
+# on escalation cases — this is expected and correct. The workflow does NOT
+# fail on routing accuracy until Week 4 when escalation logic is introduced.
+# When you add escalation in Week 4, update baseline_scores.json to include
+# routing accuracy and the regression check will automatically monitor it.
+#
+# Required secrets (set in GitHub repo Settings → Secrets → Actions):
+#   OPENAI_API_KEY       — for embeddings + LLM-as-judge calls
+#   LANGFUSE_PUBLIC_KEY  — for trace + score attachment
+#   LANGFUSE_SECRET_KEY  — for trace + score attachment
+#
+# Cost note: Project B runs handle_query() which makes ~3 LLM calls per query
+# (classify + retrieve + generate) plus 2 judge calls = ~5 calls per query.
+# At 30 golden queries that's ~150 calls per CI run — roughly ₹5-8 per PR.
+# ============================================================================
+
+name: Eval Regression Check
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  eval:
+    name: Run 4-dimensional eval and check for regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      pgvector:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: workshop
+          POSTGRES_PASSWORD: workshop123
+          POSTGRES_DB: acmera_kb
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Set up database
+        env:
+          PG_HOST: localhost
+          PG_PORT: 5434
+          PG_USER: workshop
+          PG_PASSWORD: workshop123
+          PG_DATABASE: acmera_kb
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python scripts/setup_db.py
+
+      - name: Ingest policy corpus
+        env:
+          PG_HOST: localhost
+          PG_PORT: 5434
+          PG_USER: workshop
+          PG_PASSWORD: workshop123
+          PG_DATABASE: acmera_kb
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python scripts/ingest.py
+
+      - name: Run 4-dimensional eval
+        env:
+          PG_HOST: localhost
+          PG_PORT: 5434
+          PG_USER: workshop
+          PG_PASSWORD: workshop123
+          PG_DATABASE: acmera_kb
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_HOST: https://cloud.langfuse.com
+        run: python scripts/eval_harness.py --no-langfuse
+
+      - name: Check for regressions
+        run: python scripts/check_regression.py
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results-project-b
+          path: eval_results_project_b.json
+          retention-days: 30

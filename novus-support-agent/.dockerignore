@@ -1,0 +1,11 @@
+.env
+*.env
+__pycache__/
+*.py[cod]
+*.pyo
+.git/
+.gitignore
+*.md
+scripts/eval_results.json
+scripts/baseline_scores.json
+docker-compose.yml

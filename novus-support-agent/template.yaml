@@ -1,0 +1,351 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Novus Support Agent (LangGraph) - ECS Fargate + ALB
+  Stack: acmera-support-dev | Region: ap-south-1
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+
+  OpenAIApiKey:
+    Type: String
+    NoEcho: true
+    Description: OpenAI API key (stored in Secrets Manager)
+
+  ContainerPort:
+    Type: Number
+    Default: 8080
+
+  TaskCpu:
+    Type: String
+    Default: "1024"
+
+  # 3072 MB per D5.1 spec - LangGraph state is heavier than plain pipeline
+  TaskMemory:
+    Type: String
+    Default: "3072"
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # -------------------------------------------------------------------------
+  # VPC + Networking
+  # -------------------------------------------------------------------------
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub acmera-support-${Environment}-vpc
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Public subnets (ALB)
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.1.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub acmera-support-${Environment}-public-a
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.1.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub acmera-support-${Environment}-public-b
+
+  # Private subnets (ECS tasks)
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.1.11.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: !Sub acmera-support-${Environment}-private-a
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.1.12.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: !Sub acmera-support-${Environment}-private-b
+
+  # Public route table
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  # NAT Gateway (ECS tasks in private subnet need outbound reach to api.openai.com)
+  NatEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIP.AllocationId
+      SubnetId: !Ref PublicSubnetA
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnetARouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetBRouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+
+  # -------------------------------------------------------------------------
+  # Security Groups
+  # -------------------------------------------------------------------------
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB - allow HTTP from internet
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS tasks - allow traffic only from ALB
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref ContainerPort
+          ToPort: !Ref ContainerPort
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+
+  # -------------------------------------------------------------------------
+  # Secrets Manager — OpenAI key only (no RDS needed for Project B)
+  # -------------------------------------------------------------------------
+  OpenAISecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub acmera-support-${Environment}-openai-secret
+      Description: OpenAI API key for Novus Support Agent
+      SecretString: !Sub '{"OPENAI_API_KEY": "${OpenAIApiKey}"}'
+
+  # -------------------------------------------------------------------------
+  # ECS Cluster + IAM
+  # -------------------------------------------------------------------------
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub acmera-support-${Environment}-cluster
+
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub acmera-support-${Environment}-task-exec-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: SecretsManagerRead
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref OpenAISecret
+
+  # -------------------------------------------------------------------------
+  # CloudWatch Log Group
+  # -------------------------------------------------------------------------
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/acmera-support-${Environment}
+      RetentionInDays: 7
+
+  # -------------------------------------------------------------------------
+  # ECS Task Definition
+  # -------------------------------------------------------------------------
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub acmera-support-${Environment}-task
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: novus-support
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/acmera-support-dev:latest
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+          Essential: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/acmera-support-${Environment}
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Secrets:
+            - Name: OPENAI_API_KEY
+              ValueFrom: !Sub "${OpenAISecret}:OPENAI_API_KEY::"
+          Environment:
+            # PG_PORT kept per D5.1 spec; not actively used by current retrieval (file-based)
+            - Name: PG_PORT
+              Value: "5434"
+
+  # -------------------------------------------------------------------------
+  # ALB
+  # -------------------------------------------------------------------------
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub acmera-support-${Environment}-alb
+      Subnets:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Scheme: internet-facing
+      Type: application
+
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub acmera-support-${Environment}-tg
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      VpcId: !Ref VPC
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
+
+  # -------------------------------------------------------------------------
+  # ECS Service
+  # -------------------------------------------------------------------------
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn: ALBListener
+    Properties:
+      ServiceName: !Sub acmera-support-${Environment}-service
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref TaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !Ref PrivateSubnetA
+            - !Ref PrivateSubnetB
+          SecurityGroups:
+            - !Ref ECSSecurityGroup
+          AssignPublicIp: DISABLED
+      LoadBalancers:
+        - ContainerName: novus-support
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref ALBTargetGroup
+      HealthCheckGracePeriodSeconds: 90
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  APIEndpoint:
+    Description: ALB DNS - use as AGENT_URL in curl tests
+    Value: !Sub http://${ALB.DNSName}
+
+  ECRRepository:
+    Description: ECR repository URI
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/acmera-support-dev

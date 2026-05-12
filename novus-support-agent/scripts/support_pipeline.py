@@ -6,18 +6,25 @@ Week 2 upgrades over Week 1:
   - Context loaded via retrieval.retrieve_filtered() (intent-aware, deduplicated)
   - generate_answer() uses LiteLLM with gpt-3.5-turbo fallback (B2.3 stretch)
 
-Three-step pipeline per query:
-  1. classify_tool()       — LLM intent + tool routing (B1.3)
-  2. route()               — escalation decision (Week 1 baseline: always False)
-  3. generate_answer()     — LiteLLM grounded on filtered + deduped product docs
+Week 4 additions:
+  - PiiAnonymizer opt-in (use_anonymizer=True): anonymize → pipeline → restore (P3.2)
+
+Pipeline with anonymizer enabled:
+  1. PiiAnonymizer.anonymize(query)   — replace PII with typed placeholders
+  2. classify_tool(clean_query)       — intent + tool routing on anonymized text
+  3. route()                          — escalation decision
+  4. load_context(intent)             — filtered + deduplicated product docs
+  5. generate_answer(clean_query)     — LiteLLM grounded answer (sees no raw PII)
+  6. PiiAnonymizer.restore(answer)    — replace placeholders with original values
 
 Public entry point:
-    handle_query(query: str) -> dict
+    handle_query(query: str, use_anonymizer: bool = False) -> dict
 
 Usage:
     python scripts/support_pipeline.py                   # 3 built-in test queries
     python scripts/support_pipeline.py --query "..."     # single query
     python scripts/support_pipeline.py --test            # run all 9 test queries
+    python scripts/support_pipeline.py --pii-test        # run 4 PII-containing queries
 """
 
 import argparse
@@ -66,6 +73,16 @@ ANSWER_MODEL   = "gpt-4o-mini"
 FALLBACK_MODEL = "gpt-3.5-turbo"
 TEMPERATURE    = 0.1
 ESCALATION_BASELINE = False   # Week 1 design: always handle, 0% escalation catch rate
+
+# ---------------------------------------------------------------------------
+# Week 4 — PII anonymizer (P3.2, opt-in)
+# ---------------------------------------------------------------------------
+
+try:
+    from scripts.pii_anonymizer import PiiAnonymizer, redaction_audit_log
+    PII_ANONYMIZER_AVAILABLE = True
+except ImportError:
+    PII_ANONYMIZER_AVAILABLE = False
 
 INTENTS = [
     "return_or_refund", "order_status", "billing_or_payment",
@@ -185,7 +202,7 @@ def generate_answer(query: str, context: str) -> str:
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def handle_query(query: str) -> dict:
+def handle_query(query: str, use_anonymizer: bool = False) -> dict:
     """Process a customer query through classify → route → retrieve → generate.
 
     Week 2 changes vs Week 1:
@@ -193,30 +210,60 @@ def handle_query(query: str) -> dict:
       - context is filtered to intent-relevant docs and deduplicated
       - answer generated via LiteLLM with fallback
 
+    Week 4 addition (P3.2):
+      - use_anonymizer=True: PII stripped before any LLM call, restored in answer.
+        Eval harness leaves this False so results stay deterministic.
+
     Returns:
         {
-            "query":      str,
-            "intent":     str,   one of 6 intent classes
-            "tool":       str,   one of policy_kb / order_tracker / account_lookup / multi_tool
-            "escalation": bool,  always False in Week 1/2 baseline
-            "answer":     str,
-            "context":    str,   filtered + deduplicated product docs used
-            "trace_id":   None,
+            "query":        str,   original query (never log if pii_redacted=True)
+            "intent":       str,   one of 6 intent classes
+            "tool":         str,   one of policy_kb / order_tracker / account_lookup / multi_tool
+            "escalation":   bool,  always False in Week 1/2 baseline
+            "answer":       str,   final answer with PII restored (if anonymizer enabled)
+            "context":      str,   filtered + deduplicated product docs used
+            "pii_redacted": bool,  True if PII was found and anonymized
+            "trace_id":     None,
         }
     """
-    intent, tool = classify_intent(query)
-    escalation   = route(intent, query)
+    # --- PII anonymization (P3.2) ---
+    # New instance per request; anonymize before ANY LLM call.
+    anonymizer  = None
+    clean_query = query
+    if use_anonymizer and PII_ANONYMIZER_AVAILABLE:
+        anonymizer  = PiiAnonymizer()
+        clean_query = anonymizer.anonymize(query)
+
+    intent, tool = classify_intent(clean_query)
+    escalation   = route(intent, clean_query)
     context      = load_context(intent)
-    answer       = generate_answer(query, context)
+    raw_answer   = generate_answer(clean_query, context)
+
+    # --- Restore PII in the answer ---
+    answer = anonymizer.restore(raw_answer) if anonymizer else raw_answer
+    pii_redacted = bool(anonymizer and anonymizer.has_pii())
+
+    # --- P3.3: Audit log — only when PII was found ---
+    if anonymizer and pii_redacted:
+        try:
+            redaction_audit_log(
+                query=query,
+                anonymizer=anonymizer,
+                intent=intent,
+                trace_id=None,
+            )
+        except Exception:
+            pass  # audit log failure must never break the pipeline
 
     return {
-        "query":      query,
-        "intent":     intent,
-        "tool":       tool,
-        "escalation": escalation,
-        "answer":     answer,
-        "context":    context,
-        "trace_id":   None,
+        "query":        query,        # original — do NOT log if pii_redacted=True
+        "intent":       intent,
+        "tool":         tool,
+        "escalation":   escalation,
+        "answer":       answer,
+        "context":      context,
+        "pii_redacted": pii_redacted,
+        "trace_id":     None,
     }
 
 
@@ -237,11 +284,34 @@ TEST_QUERIES = [
 ]
 
 
+PII_TEST_QUERIES = [
+    "My email is priya@gmail.com, order ORD-445521 — where is my refund?",
+    "Call me at +91 98765 43210 about the wrong charge on my loan",
+    "I'm Rahul Mehta and I was billed twice for ORD-887766",
+    "Please check ORD-112233 for test.user@novusbank.com",
+]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Novus Support Agent pipeline")
-    parser.add_argument("--query", type=str, help="Single query to handle")
-    parser.add_argument("--test",  action="store_true", help="Run all 9 test queries")
+    parser.add_argument("--query",    type=str, help="Single query to handle")
+    parser.add_argument("--test",     action="store_true", help="Run all 9 test queries")
+    parser.add_argument("--pii-test", action="store_true", help="Run 4 PII queries with anonymizer")
     args = parser.parse_args()
+
+    if args.pii_test:
+        print("=== P3.2 — PII anonymizer wired into handle_query() ===\n")
+        for q in PII_TEST_QUERIES:
+            t0 = time.time()
+            result = handle_query(q, use_anonymizer=True)
+            elapsed = round(time.time() - t0, 2)
+            print(f"Query        : {q}")
+            print(f"pii_redacted : {result['pii_redacted']}")
+            print(f"Intent       : {result['intent']}  →  Tool: {result['tool']}")
+            print(f"Answer       : {result['answer'][:120]}")
+            print(f"Time         : {elapsed}s")
+            print("-" * 70)
+        return
 
     if args.test:
         queries = TEST_QUERIES

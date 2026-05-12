@@ -1,6 +1,8 @@
 openai
+langgraph>=0.2
 langfuse>=2.0.0,<3.0.0
 psycopg2-binary
 pgvector
 python-dotenv
 rich
+litellm>=1.0.0

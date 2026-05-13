@@ -16,5 +16,7 @@ novus-support-agent/scripts/eval_results.json
 Thumbs.db
 
 # Claude internals
-.claude/hooks/__pycache__/
-.claude/skills/
+.claude/
+
+# Audit logs (may contain PII redaction records)
+novus-support-agent/data/audit.jsonl

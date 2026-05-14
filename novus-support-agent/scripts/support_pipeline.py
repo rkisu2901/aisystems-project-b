@@ -84,6 +84,28 @@ try:
 except ImportError:
     PII_ANONYMIZER_AVAILABLE = False
 
+# ---------------------------------------------------------------------------
+# Week 4 — Guardrails (opt-in)
+# ---------------------------------------------------------------------------
+
+try:
+    from scripts.input_guardrail import check_input as _check_input
+    INPUT_GUARDRAIL_AVAILABLE = True
+except ImportError:
+    INPUT_GUARDRAIL_AVAILABLE = False
+
+try:
+    from scripts.output_guardrail import check_hallucination as _check_hallucination
+    OUTPUT_GUARDRAIL_AVAILABLE = True
+except ImportError:
+    OUTPUT_GUARDRAIL_AVAILABLE = False
+
+FALLBACK_ANSWER = (
+    "I found some relevant information but cannot confirm all the details with "
+    "full accuracy. Please contact Novus Bank support at 1800-NOVUS for a "
+    "verified answer to your question."
+)
+
 INTENTS = [
     "return_or_refund", "order_status", "billing_or_payment",
     "product_info", "membership", "general",
@@ -110,17 +132,51 @@ def classify_intent(query: str) -> tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# Step 2: Routing (escalation decision — Week 1 baseline unchanged)
+# Step 2: Routing (escalation decision — Week 4 real classifier)
 # ---------------------------------------------------------------------------
 
-def route(intent: str, query: str) -> bool:
-    """Escalation routing.
+_ESCALATION_PROMPT = """You are an escalation classifier for Novus Bank customer support.
 
-    Week 1 baseline: always return False (handle automatically).
-    Week 4 will replace this with a real escalation classifier.
-    See debt/pb-no-escalation-logic.
+Decide whether this query must be escalated to a human agent or can be handled automatically.
+
+Escalate (respond "YES") when ANY of the following are true:
+- The customer reports fraud, unauthorized transaction, or account compromise
+- The customer reports SIM swap or suspicious login activity
+- The customer is distressed, threatening legal action, or using urgent/angry language
+- The query involves a disputed charge above ₹10,000
+- The customer explicitly requests to speak to a human agent
+- The situation involves a potential regulatory/compliance concern
+
+Handle automatically (respond "NO") for:
+- Standard product information queries
+- Policy questions (rates, limits, fees)
+- Account activation, KYC, or onboarding questions
+- General how-to questions
+
+Respond with exactly one word: YES or NO."""
+
+
+def route(intent: str, query: str) -> bool:
+    """Escalation routing — LLM-based classifier (Week 4).
+
+    Returns True if the query should be escalated to a human agent.
+    Fails safe (returns False) on any API error so the pipeline
+    can still serve an automated answer rather than dropping the query.
     """
-    return ESCALATION_BASELINE
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            temperature=0,
+            max_tokens=5,
+            messages=[
+                {"role": "system", "content": _ESCALATION_PROMPT},
+                {"role": "user",   "content": f"Intent: {intent}\nQuery: {query}"},
+            ],
+        )
+        answer = response.choices[0].message.content.strip().upper()
+        return answer.startswith("YES")
+    except Exception:
+        return False  # fail safe: serve automated answer on API error
 
 
 # ---------------------------------------------------------------------------
@@ -164,8 +220,18 @@ Be concise, accurate, and professional.
 Product Knowledge:
 """
 
+_STRICT_SYSTEM_PROMPT_PREFIX = """You are a strict customer support agent for Novus Bank.
 
-def generate_answer(query: str, context: str) -> str:
+CRITICAL: Answer ONLY from the product knowledge provided below.
+- If a specific number, rate, or policy detail is not explicitly stated, do NOT include it.
+- Quote or closely paraphrase the source. Do not infer, extrapolate, or add details.
+- If the answer is not present, respond: "I don't have specific information about that. Please contact our support team at 1800-NOVUS."
+
+Product Knowledge:
+"""
+
+
+def generate_answer(query: str, context: str, _strict: bool = False) -> str:
     """Generate a grounded answer using LiteLLM with automatic fallback.
 
     Uses litellm.completion() if LiteLLM is installed — falls back to
@@ -174,8 +240,11 @@ def generate_answer(query: str, context: str) -> str:
 
     Context is concatenated via string addition (not .format()) to be
     safe against literal brace characters in product doc content.
+    _strict=True uses a stricter system prompt that forbids inference — used
+    on the retry pass after the output guardrail detects a hallucination.
     """
-    system_content = ANSWER_SYSTEM_PROMPT_PREFIX + context
+    prefix = _STRICT_SYSTEM_PROMPT_PREFIX if _strict else ANSWER_SYSTEM_PROMPT_PREFIX
+    system_content = prefix + context
     messages = [
         {"role": "system", "content": system_content},
         {"role": "user",   "content": query},
@@ -202,7 +271,13 @@ def generate_answer(query: str, context: str) -> str:
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def handle_query(query: str, use_anonymizer: bool = False) -> dict:
+def handle_query(
+    query: str,
+    use_anonymizer: bool = False,
+    use_guardrail: bool = False,
+    use_output_guardrail: bool = False,
+    guardrail_sample_rate: float = 1.0,
+) -> dict:
     """Process a customer query through classify → route → retrieve → generate.
 
     Week 2 changes vs Week 1:
@@ -210,22 +285,50 @@ def handle_query(query: str, use_anonymizer: bool = False) -> dict:
       - context is filtered to intent-relevant docs and deduplicated
       - answer generated via LiteLLM with fallback
 
-    Week 4 addition (P3.2):
-      - use_anonymizer=True: PII stripped before any LLM call, restored in answer.
-        Eval harness leaves this False so results stay deterministic.
+    Week 4 additions:
+      - use_anonymizer=True (P3.2): PII stripped before any LLM call, restored in answer.
+      - use_guardrail=True: check_input() fires first; blocked queries return immediately.
+      - use_output_guardrail=True: check_hallucination() runs after generation; retries once
+        with _STRICT_SYSTEM_PROMPT on detection; returns FALLBACK_ANSWER on double failure.
+      - guardrail_sample_rate: fraction of queries checked by output guardrail (0.0–1.0).
+      All flags default to False — eval harness unaffected.
 
     Returns:
         {
-            "query":        str,   original query (never log if pii_redacted=True)
-            "intent":       str,   one of 6 intent classes
-            "tool":         str,   one of policy_kb / order_tracker / account_lookup / multi_tool
-            "escalation":   bool,  always False in Week 1/2 baseline
-            "answer":       str,   final answer with PII restored (if anonymizer enabled)
-            "context":      str,   filtered + deduplicated product docs used
-            "pii_redacted": bool,  True if PII was found and anonymized
-            "trace_id":     None,
+            "query":               str,
+            "intent":              str,
+            "tool":                str,
+            "escalation":          bool,
+            "answer":              str,
+            "context":             str,
+            "pii_redacted":        bool,
+            "trace_id":            None,
+            "guardrail_blocked":   bool,
+            "guardrail_reason":    str | None,
+            "hallucination_detected": bool | None,
         }
     """
+    import random
+    t0 = time.time()
+
+    # --- Input guardrail (G1.1/G1.2) — fires before PII/classification/retrieval ---
+    if use_guardrail and INPUT_GUARDRAIL_AVAILABLE:
+        guard = _check_input(query)
+        if not guard["safe"]:
+            return {
+                "query":               query,
+                "intent":              "blocked",
+                "tool":                "input_guardrail",
+                "escalation":          False,
+                "answer":              guard["refusal"],
+                "context":             "",
+                "pii_redacted":        False,
+                "trace_id":            None,
+                "guardrail_blocked":   True,
+                "guardrail_reason":    guard["category"],
+                "hallucination_detected": None,
+            }
+
     # --- PII anonymization (P3.2) ---
     # New instance per request; anonymize before ANY LLM call.
     anonymizer  = None
@@ -238,6 +341,24 @@ def handle_query(query: str, use_anonymizer: bool = False) -> dict:
     escalation   = route(intent, clean_query)
     context      = load_context(intent)
     raw_answer   = generate_answer(clean_query, context)
+
+    # --- Output guardrail (O2.1) — verify answer against context, with retry ---
+    hallucination_detected = None
+    if (
+        use_output_guardrail
+        and OUTPUT_GUARDRAIL_AVAILABLE
+        and random.random() < guardrail_sample_rate
+    ):
+        og_result = _check_hallucination(raw_answer, context)
+        if og_result["has_hallucination"]:
+            # Retry once with strict system prompt
+            raw_answer = generate_answer(clean_query, context, _strict=True)
+            og_result2 = _check_hallucination(raw_answer, context)
+            if og_result2["has_hallucination"]:
+                raw_answer = FALLBACK_ANSWER
+            hallucination_detected = True
+        else:
+            hallucination_detected = False
 
     # --- Restore PII in the answer ---
     answer = anonymizer.restore(raw_answer) if anonymizer else raw_answer
@@ -256,14 +377,17 @@ def handle_query(query: str, use_anonymizer: bool = False) -> dict:
             pass  # audit log failure must never break the pipeline
 
     return {
-        "query":        query,        # original — do NOT log if pii_redacted=True
-        "intent":       intent,
-        "tool":         tool,
-        "escalation":   escalation,
-        "answer":       answer,
-        "context":      context,
-        "pii_redacted": pii_redacted,
-        "trace_id":     None,
+        "query":               query,        # original — do NOT log if pii_redacted=True
+        "intent":              intent,
+        "tool":                tool,
+        "escalation":          escalation,
+        "answer":              answer,
+        "context":             context,
+        "pii_redacted":        pii_redacted,
+        "trace_id":            None,
+        "guardrail_blocked":   False,
+        "guardrail_reason":    None,
+        "hallucination_detected": hallucination_detected,
     }
 
 

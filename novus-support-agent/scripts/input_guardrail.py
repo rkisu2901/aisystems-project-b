@@ -72,14 +72,14 @@ Be conservative: if a query is borderline, prefer blocking it.
 The "reason" field should be one short sentence explaining the classification."""
 
 REFUSAL_MESSAGES = {
-    "off_topic":             "I can only help with Acmera orders, returns, payments, products, membership, shipping, warranty, and account management. Please contact support@acmera.com for other queries.",
+    "off_topic":             "I can only help with Novus Bank accounts, loans, cards, payments, membership, and banking services. Please contact 1800-NOVUS for other queries.",
     "prompt_injection":      "I'm not able to follow instructions that override my guidelines.",
-    "social_engineering":    "I can only assist with Acmera customer support questions.",
+    "social_engineering":    "I can only assist with Novus Bank customer support questions.",
     "internal_data_request": "I'm not able to share internal policies or agent guidelines.",
     "harmful_intent":        "I'm not able to assist with that request.",
 }
 
-DEFAULT_REFUSAL = "I'm not able to process that request. Please contact support@acmera.com."
+DEFAULT_REFUSAL = "I'm not able to process that request. Please contact Novus Bank support at 1800-NOVUS."
 
 
 # ---------------------------------------------------------------------------
@@ -87,14 +87,14 @@ DEFAULT_REFUSAL = "I'm not able to process that request. Please contact support@
 # ---------------------------------------------------------------------------
 
 TOPIC_PROMPT = (
-    "Is this query about e-commerce customer support "
-    "(orders, returns, products, payments, membership, shipping, warranty, accounts)? "
+    "Is this query about banking or financial services "
+    "(accounts, loans, cards, payments, UPI, transfers, membership, KYC, fraud, or Novus Bank)? "
     "Answer YES or NO only."
 )
 
 
 def is_on_topic(query: str) -> bool:
-    """Return True if the query is about Acmera customer support topics.
+    """Return True if the query is about Novus Bank customer support topics.
 
     Uses a single cheap gpt-4o-mini call (max_tokens=5, YES/NO).
     Fails closed: any API error returns False (treat as off-topic, block).

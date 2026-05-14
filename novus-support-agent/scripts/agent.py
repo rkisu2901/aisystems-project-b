@@ -49,8 +49,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from typing import TypedDict
 from langgraph.graph import StateGraph, END
 from openai import OpenAI
+import requests
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# ADR-8: Project A RAG API URL for the policy_kb tool path
+RAG_API_URL = os.getenv("RAG_API_URL", "http://localhost:8080")
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -115,8 +119,26 @@ class AgentState(TypedDict):
 # Tool implementations
 # ---------------------------------------------------------------------------
 
-def _run_policy_kb(intent: str) -> str:
-    """Retrieve filtered + deduplicated product docs for this intent."""
+def _run_policy_kb(intent: str, query: str = "") -> str:
+    """Retrieve policy context via Project A's RAG API (ADR-8).
+
+    Calls POST /query on Project A for hybrid vector retrieval over the full
+    19-doc corpus. Falls back to in-memory retrieval if the API is unreachable.
+    """
+    if query:
+        try:
+            resp = requests.post(
+                f"{RAG_API_URL}/query",
+                json={"query": query, "mode": "hybrid"},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            ctx = resp.json().get("context", "")
+            if ctx:
+                return f"[policy_kb] {ctx}"
+        except Exception:
+            pass  # fall through to in-memory fallback
+
     try:
         from scripts.retrieval import retrieve_filtered, deduplicate_chunks
         chunks = retrieve_filtered(intent)
@@ -294,7 +316,7 @@ def tool_node(state: AgentState) -> dict:
     n_results   = len(state["tool_results"])
 
     if tool == "policy_kb":
-        result      = _run_policy_kb(intent)
+        result      = _run_policy_kb(intent, query=query)
         tool_label  = "policy_kb"
 
     elif tool == "order_tracker":
@@ -307,15 +329,15 @@ def tool_node(state: AgentState) -> dict:
 
     elif tool == "multi_tool":
         if n_results == 0:
-            # First pass: policy knowledge base
-            result     = _run_policy_kb(intent)
+            # First pass: policy knowledge base via Project A RAG API
+            result     = _run_policy_kb(intent, query=query)
             tool_label = "policy_kb"
         else:
             # Second pass: account lookup
             result     = _run_account_lookup(query)
             tool_label = "account_lookup"
     else:
-        result      = _run_policy_kb(intent)
+        result      = _run_policy_kb(intent, query=query)
         tool_label  = "policy_kb_fallback"
 
     return {

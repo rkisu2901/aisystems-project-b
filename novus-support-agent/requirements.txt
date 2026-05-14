@@ -8,3 +8,4 @@ python-dotenv
 rich
 litellm>=1.0.0
 langgraph>=0.2.0
+requests              # ADR-8: policy_kb tool HTTP calls to Project A RAG API

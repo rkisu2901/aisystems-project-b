@@ -100,6 +100,14 @@ try:
 except ImportError:
     OUTPUT_GUARDRAIL_AVAILABLE = False
 
+# ---------------------------------------------------------------------------
+# ADR-8: Project A RAG API URL (policy_kb tool path)
+# ---------------------------------------------------------------------------
+
+import requests
+
+RAG_API_URL = os.getenv("RAG_API_URL", "http://localhost:8080")
+
 FALLBACK_ANSWER = (
     "I found some relevant information but cannot confirm all the details with "
     "full accuracy. Please contact Novus Bank support at 1800-NOVUS for a "
@@ -183,20 +191,36 @@ def route(intent: str, query: str) -> bool:
 # Step 3: Context loading via filtered + deduplicated retrieval (Week 2)
 # ---------------------------------------------------------------------------
 
-def load_context(intent: str) -> str:
-    """Return product doc context filtered to the intent and deduplicated.
+def load_context(intent: str, query: str = "", tool: str = "") -> str:
+    """Return context for the given tool path.
 
-    Week 1 loaded all docs unconditionally. Week 2 uses retrieve_filtered()
-    so a membership query doesn't receive loan EMI schedules as context,
-    reducing hallucination risk and prompt token cost.
+    policy_kb path (ADR-8): calls Project A's POST /query API for vector
+    retrieval over the full 19-doc corpus. Falls back to in-memory retrieval
+    if the RAG API is unreachable.
+
+    order_tracker / account_lookup paths: use in-memory retrieval (unchanged).
     """
+    if tool == "policy_kb" and query:
+        try:
+            resp = requests.post(
+                f"{RAG_API_URL}/query",
+                json={"query": query, "mode": "hybrid"},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            ctx = resp.json().get("context", "")
+            if ctx:
+                return ctx
+        except Exception:
+            pass  # fall through to in-memory retrieval
+
+    # In-memory retrieval for non-policy paths and RAG API fallback
     try:
         from scripts.retrieval import retrieve_filtered, deduplicate_chunks
         chunks = retrieve_filtered(intent)
         unique, _ = deduplicate_chunks(chunks, threshold=0.75)
         return "\n\n---\n\n".join(c["content"] for c in unique)
     except Exception:
-        # Fallback: read all product docs (Week 1 behaviour)
         data_dir = Path(__file__).parent.parent / "data" / "products"
         parts = []
         for md_file in sorted(data_dir.glob("*.md")):
@@ -339,7 +363,7 @@ def handle_query(
 
     intent, tool = classify_intent(clean_query)
     escalation   = route(intent, clean_query)
-    context      = load_context(intent)
+    context      = load_context(intent, query=clean_query, tool=tool)
     raw_answer   = generate_answer(clean_query, context)
 
     # --- Output guardrail (O2.1) — verify answer against context, with retry ---

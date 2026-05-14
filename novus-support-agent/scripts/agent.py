@@ -63,23 +63,36 @@ MAX_STEPS       = 6          # hard safety limit to prevent infinite loops
 # Keyword patterns that strongly signal the query should be escalated to a
 # human agent (billing disputes with evidence, security issues, SLA failures).
 ESCALATION_KEYWORDS = [
-    "reverse immediately",
-    "wrong charge",
-    "wrongly charged",
-    "incorrect charge",
-    "unauthorized",
+    # Billing disputes / wrong charges
+    "reverse immediately", "reversed immediately",
+    "want this reversed", "get this reversed",
+    "wrong charge", "wrongly charged", "incorrect charge",
+    "wrong penalty", "wrongful",
+    "dispute",
+    # Fraud / security (both US and British spellings)
+    "unauthorized", "unauthorised",
+    "never authorized", "never authorised",
     "fraud",
+    "account hacked", "security breach",
+    "sim swap",
+    # Urgency / distress signals
+    "locked out",
+    "life-threatening",
+    "urgent", "urgently",
+    "immediately",
+    # Service failures / SLA breaches
+    "pending for",
+    "still not resolved",
+    "multiple calls",
+    "promised me",
+    "despite multiple",
+    "unacceptable delay", "sla breach",
+    # Escalation intent
     "lodge complaint",
     "escalate",
-    "legal action",
-    "consumer court",
-    "already paid",
-    "charged twice",
-    "double charged",
-    "account hacked",
-    "security breach",
-    "sla breach",
-    "unacceptable delay",
+    "legal action", "consumer court",
+    # Duplicate / double charges
+    "already paid", "charged twice", "double charged",
 ]
 
 # ---------------------------------------------------------------------------
@@ -124,14 +137,15 @@ def _run_order_tracker(query: str) -> str:
     if any(k in q for k in ("savings account", "saving", "account activation")):
         return (
             "[order_tracker] Savings account status: Application received. "
-            "Standard activation takes 3–5 business days. "
+            "Standard activation is completed within 2 hours after Video KYC or branch verification. "
             "Physical debit card dispatched within 7 working days."
         )
     if any(k in q for k in ("personal loan", "loan", "disburse")):
         return (
             "[order_tracker] Personal loan status: Loan application under review. "
-            "Disbursement timeline: 2–4 business days after final approval. "
-            "Processing fee: as per your loan agreement."
+            "Disbursement timeline: within 24 hours for pre-approved customers; "
+            "3–5 working days for non-pre-approved customers after final approval. "
+            "Processing fee: 1% of loan amount (minimum Rs 999)."
         )
     return (
         "[order_tracker] Application status: Under processing. "
@@ -149,20 +163,29 @@ def _run_account_lookup(query: str) -> str:
     if "elite" in q:
         return (
             "[account_lookup] Account tier: Elite. "
-            "Benefits: zero foreclosure charges after 12 EMIs, "
-            "dedicated relationship manager, priority processing. "
-            "AQB requirement: Rs 1,00,000."
+            "Savings interest: 4.0% p.a. credited quarterly. "
+            "Minimum balance: waived (no AQB requirement). "
+            "ATM withdrawals: unlimited free at other bank ATMs. "
+            "Personal loan rate: 11% p.a. "
+            "Foreclosure: zero charge after 18 EMIs. "
+            "Additional benefits: dedicated relationship manager, priority processing."
         )
     if "plus" in q or "novus plus" in q:
         return (
             "[account_lookup] Account tier: Novus Plus. "
-            "Benefits: reduced processing fees, 5.5% p.a. savings interest, "
-            "2 free ATM withdrawals/month. AQB requirement: Rs 25,000."
+            "Savings interest: 4.0% p.a. credited quarterly. "
+            "Minimum balance: waived (AQB requirement: Rs 25,000). "
+            "ATM withdrawals: 5 free per month at other bank ATMs. "
+            "Personal loan rate: 13% p.a. "
+            "Foreclosure: standard charges apply."
         )
     return (
         "[account_lookup] Account tier: Standard. "
-        "Benefits: standard savings rate 4% p.a., 1 free ATM withdrawal/month. "
-        "AQB requirement: Rs 10,000."
+        "Savings interest: 3.5% p.a. credited quarterly. "
+        "Minimum balance: Rs 1,000. "
+        "ATM withdrawals: 3 free per month at other bank ATMs. "
+        "Personal loan rate: 16–18% p.a. "
+        "Foreclosure: 1% charge after 12 EMIs."
     )
 
 

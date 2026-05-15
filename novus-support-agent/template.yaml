@@ -344,6 +344,34 @@ Resources:
           TargetGroupArn: !Ref ALBTargetGroup
       HealthCheckGracePeriodSeconds: 90
 
+  # -------------------------------------------------------------------------
+  # ECS Auto Scaling
+  # Tasks are heavier than Project A (1vCPU/3GB, multi-hop LLM) — max=5
+  # Same CPU threshold (60%) and cooldown asymmetry (60s out / 300s in)
+  # -------------------------------------------------------------------------
+  ECSScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn: ECSService
+    Properties:
+      MaxCapacity: 5
+      MinCapacity: 1
+      ResourceId: !Sub "service/acmera-support-${Environment}-cluster/acmera-support-${Environment}-service"
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  ECSScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub acmera-support-${Environment}-cpu-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ECSScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 60.0
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleOutCooldown: 60
+        ScaleInCooldown: 300
+
 # ---------------------------------------------------------------------------
 # Outputs
 # ---------------------------------------------------------------------------

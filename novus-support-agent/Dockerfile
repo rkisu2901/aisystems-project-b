@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # data/products/ must be baked in — retrieval.py reads from the filesystem
 COPY scripts/ ./scripts/
 COPY data/ ./data/
+COPY frontend/ ./frontend/
 COPY api.py .
 
 EXPOSE 8080

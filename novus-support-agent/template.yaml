@@ -279,6 +279,8 @@ Resources:
               Value: sk-lf-fab17270-12c9-43ce-b5bf-c8a54f95fa2d
             - Name: LANGFUSE_HOST
               Value: https://cloud.langfuse.com
+            - Name: RAG_API_URL
+              Value: http://acmera-dev-alb-1455256747.ap-south-1.elb.amazonaws.com
 
   # -------------------------------------------------------------------------
   # ALB
